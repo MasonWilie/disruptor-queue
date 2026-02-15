@@ -34,7 +34,7 @@ class disruptor_queue
 
    private:
     disruptor_queue& _queue;
-    std::atomic<sequence_type> _consumer_sequence;
+    std::atomic<sequence_type> _consumer_sequence{-1};
 
     friend class disruptor_queue;
   };
@@ -49,7 +49,7 @@ class disruptor_queue
     void wait_for_no_wrap(sequence_type claimed_sequence) noexcept;
 
     disruptor_queue& _queue;
-    sequence_type _min_consumer_sequence;
+    sequence_type _min_consumer_sequence{-1};
 
     friend class disruptor_queue;
   };
@@ -68,12 +68,12 @@ class disruptor_queue
   static std::size_t index_from_sequence(sequence_type sequence) noexcept;
   sequence_type get_min_consumer_sequence() noexcept;
 
-  std::array<value_type, CAPACITY> _buffer;
-  std::atomic<sequence_type> _producer_sequence{1};
-  std::atomic<sequence_type> _available_sequence{1};
+  std::array<value_type, CAPACITY> _buffer{};
+  std::atomic<sequence_type> _next_sequence{0};
+  std::atomic<sequence_type> _available_sequence{-1};
 
-  std::list<reader> _readers;
-  std::list<writer> _writers;
+  std::list<reader> _readers{};
+  std::list<writer> _writers{};
 };
 
 // ----------- QUEUE -----------------
@@ -123,7 +123,7 @@ auto disruptor_queue<T, SIZE>::get_min_consumer_sequence() noexcept
 
 template <typename T, std::size_t SIZE>
 disruptor_queue<T, SIZE>::writer::writer(disruptor_queue& queue) noexcept
-    : _queue{queue}, _min_consumer_sequence{0}
+    : _queue{queue}
 {
 }
 
@@ -131,7 +131,7 @@ template <typename T, std::size_t SIZE>
 auto disruptor_queue<T, SIZE>::writer::write(value_type value) noexcept -> void
 {
   // Claim a sequence number
-  const sequence_type claimed_sequence = _queue._producer_sequence.fetch_add(1);
+  const sequence_type claimed_sequence = _queue._next_sequence.fetch_add(1);
 
   // Wait until writing to that sequece number won't cause a wrap
   wait_for_no_wrap(claimed_sequence);
