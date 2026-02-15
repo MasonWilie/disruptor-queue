@@ -1,0 +1,6 @@
+cc_library(
+    name = "disruptor_queue",
+    hdrs = ["disruptor_queue.hpp"],
+    visibility = ["//visibility:public"],
+    strip_include_prefix = ".",
+)

@@ -39,3 +39,12 @@
 
 # debug information files
 *.dwo
+
+# Bazel
+/bazel-*
+.bazel/
+compile_commands.json
+external
+
+# IDE
+.vscode/

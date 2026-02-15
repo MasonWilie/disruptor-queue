@@ -1,0 +1,3 @@
+class disruptor_queue
+{
+};
