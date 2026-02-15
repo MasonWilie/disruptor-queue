@@ -6,7 +6,7 @@ namespace dq::test
 
 TEST(Test, TestThatItWorks)
 {
-  disruptor_queue<int, 100> queue;
+  disruptor_queue<int, 16> queue;
 
   auto& writer = queue.create_writer();
   auto& reader = queue.create_reader();
