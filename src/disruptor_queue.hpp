@@ -4,6 +4,8 @@
 #include <atomic>
 #include <limits>
 #include <list>
+#include <mutex>
+#include <thread>
 
 #include "bit_utils.hpp"
 
@@ -27,13 +29,14 @@ class disruptor_queue
   class reader
   {
    public:
+    explicit reader(disruptor_queue& queue) noexcept;
     value_type read() noexcept;
 
    private:
-    explicit reader(disruptor_queue& queue) noexcept;
-
     disruptor_queue& _queue;
     std::atomic<sequence_type> _consumer_sequence;
+
+    friend class disruptor_queue;
   };
 
   class writer
@@ -47,10 +50,15 @@ class disruptor_queue
 
     disruptor_queue& _queue;
     sequence_type _min_consumer_sequence;
+
+    friend class disruptor_queue;
   };
 
  public:
   disruptor_queue() = default;
+
+  reader& create_reader();
+  writer& create_writer();
 
  private:
   static constexpr const std::size_t CAPACITY =
@@ -65,9 +73,22 @@ class disruptor_queue
   std::atomic<sequence_type> _available_sequence{1};
 
   std::list<reader> _readers;
+  std::list<writer> _writers;
 };
 
 // ----------- QUEUE -----------------
+
+template <typename T, std::size_t SIZE>
+auto disruptor_queue<T, SIZE>::create_reader() -> reader&
+{
+  return _readers.emplace_back(*this);
+}
+
+template <typename T, std::size_t SIZE>
+auto disruptor_queue<T, SIZE>::create_writer() -> writer&
+{
+  return _writers.emplace_back(*this);
+}
 
 template <typename T, std::size_t SIZE>
 constexpr auto disruptor_queue<T, SIZE>::capacity() -> size_type
@@ -118,15 +139,15 @@ auto disruptor_queue<T, SIZE>::writer::write(value_type value) noexcept -> void
   // Write to that sequence number
   const std::size_t write_index =
       disruptor_queue::index_from_sequence(claimed_sequence);
-  _buffer[write_index] = std::move(value);
+  _queue._buffer[write_index] = std::move(value);
 
   const sequence_type previous_sequence = claimed_sequence - 1;
 
-  while (_available_sequence.load() != previous_sequence)
+  while (_queue._available_sequence.load() != previous_sequence)
   {
   }
 
-  _available_sequence.store(claimed_sequence);
+  _queue._available_sequence.store(claimed_sequence);
 }
 
 template <typename T, std::size_t SIZE>
@@ -159,12 +180,12 @@ auto disruptor_queue<T, SIZE>::reader::read() noexcept -> value_type
   const int read_index = index_from_sequence(next_read_sequence);
 
   // Wait until that sequence is actually associated with a value
-  while (next_read_sequence > _available_sequence.load())
+  while (next_read_sequence > _queue._available_sequence.load())
   {
   }
 
   // Read from that sequence
-  value_type value = _buffer[read_index];
+  value_type value = _queue._buffer[read_index];
 
   // Broadcast that we've read from the sequence
   _consumer_sequence.store(next_read_sequence);
