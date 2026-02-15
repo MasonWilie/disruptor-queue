@@ -10,6 +10,12 @@ constexpr std::size_t ceil_to_power_of_two(const std::size_t original,
   constexpr const std::size_t MAX_POWER =
       std::numeric_limits<std::size_t>::max() -
       (std::numeric_limits<std::size_t>::max() >> 1);
+
+  if (original > MAX_POWER)
+  {
+    return MAX_POWER;
+  }
+
   const std::size_t current_power = 1 << current_bit;
 
   if (current_power >= original || current_bit == MAX_POWER)
