@@ -183,7 +183,8 @@ auto disruptor_queue<T, SIZE>::reader::read() noexcept -> value_type
   const int read_index = index_from_sequence(next_read_sequence);
 
   // Wait until that sequence is actually associated with a value
-  while (next_read_sequence > _queue._available_sequence.load())
+  while (next_read_sequence >
+         _queue._available_sequence.load(std::memory_order_acquire))
   {
   }
 
