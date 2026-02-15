@@ -18,9 +18,6 @@ build --copt=-Wall
 build --copt=-Wextra
 build --copt=-Wpedantic
 
-build --action_env=CC=clang
-build --action_env=CXX=clang++
-
 # Test output
 test --test_output=errors
 
