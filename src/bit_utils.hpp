@@ -4,8 +4,12 @@
 namespace dq::internal
 {
 
-constexpr std::size_t ceil_to_power_of_two(const std::size_t original,
-                                           const std::size_t current_bit = 0)
+namespace
+{
+
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+constexpr std::size_t ceil_to_power_of_two_impl(const std::size_t original,
+                                                const std::size_t current_bit)
 {
   constexpr const std::size_t MAX_POWER =
       std::numeric_limits<std::size_t>::max() -
@@ -23,7 +27,14 @@ constexpr std::size_t ceil_to_power_of_two(const std::size_t original,
     return current_power;
   }
 
-  return ceil_to_power_of_two(original, current_bit + 1);
+  return ceil_to_power_of_two_impl(original, current_bit + 1);
+}
+
+}  // namespace
+
+constexpr std::size_t ceil_to_power_of_two(const std::size_t original)
+{
+  return ceil_to_power_of_two_impl(original, 0);
 }
 
 template <typename unsigned_int_t>
