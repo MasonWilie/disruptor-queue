@@ -1,9 +1,8 @@
 #pragma once
 
-#include <inttypes.h>
-
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <deque>
 #include <limits>
 #include <memory>
