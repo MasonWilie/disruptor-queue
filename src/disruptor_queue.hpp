@@ -174,7 +174,7 @@ auto disruptor_queue<T, CAPACITY>::writer::write(value_type value) noexcept
 
 template <typename T, std::size_t CAPACITY>
 template <typename... Args>
-void disruptor_queue<T, CAPACITY>::writer::write_emplace(Args&&... args)
+auto disruptor_queue<T, CAPACITY>::writer::write_emplace(Args&&... args) -> void
 {
   const sequence_type claimed_sequence = claim_sequence();
 
@@ -198,16 +198,17 @@ auto disruptor_queue<T, CAPACITY>::writer::claim_sequence() noexcept
 }
 
 template <typename T, std::size_t CAPACITY>
-void disruptor_queue<T, CAPACITY>::writer::commit_sequence(
-    const size_type write_index, const sequence_type claimed_sequence) noexcept
+auto disruptor_queue<T, CAPACITY>::writer::commit_sequence(
+    const size_type write_index,
+    const sequence_type claimed_sequence) noexcept -> void
 {
   _queue._slot_sequences[write_index].store(claimed_sequence,
                                             std::memory_order_release);
 }
 
 template <typename T, std::size_t CAPACITY>
-void disruptor_queue<T, CAPACITY>::writer::wait_for_no_wrap(
-    sequence_type claimed_sequence) noexcept
+auto disruptor_queue<T, CAPACITY>::writer::wait_for_no_wrap(
+    sequence_type claimed_sequence) noexcept -> void
 {
   const sequence_type wrap_point =
       claimed_sequence - static_cast<sequence_type>(CAPACITY);
