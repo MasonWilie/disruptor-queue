@@ -276,7 +276,7 @@ template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::reader::get_next_read_sequence() noexcept
     -> sequence_type
 {
-  return _consumer_sequence.load() + 1;
+  return _consumer_sequence.load(std::memory_order_relaxed) + 1;
 }
 
 template <typename T, std::size_t CAPACITY>
