@@ -133,10 +133,12 @@ class alignas(64) disruptor_queue<T, CAPACITY>::writer
  public:
   explicit writer(disruptor_queue& queue) noexcept;
 
-  void write(value_type value) noexcept;
+  void write(value_type value) noexcept(std::is_nothrow_move_assignable_v<T>);
 
   template <typename... Args>
-  void write_emplace(Args&&... args);
+  void write_emplace(Args&&... args) noexcept(
+      std::is_nothrow_constructible_v<T, Args...> &&
+      std::is_nothrow_move_assignable_v<T>);
 
  private:
   sequence_type claim_sequence() noexcept;
@@ -157,8 +159,8 @@ disruptor_queue<T, CAPACITY>::writer::writer(disruptor_queue& queue) noexcept
 }
 
 template <typename T, std::size_t CAPACITY>
-auto disruptor_queue<T, CAPACITY>::writer::write(value_type value) noexcept
-    -> void
+auto disruptor_queue<T, CAPACITY>::writer::write(value_type value) noexcept(
+    std::is_nothrow_move_assignable_v<T>) -> void
 {
   const sequence_type claimed_sequence = claim_sequence();
 
@@ -170,7 +172,9 @@ auto disruptor_queue<T, CAPACITY>::writer::write(value_type value) noexcept
 
 template <typename T, std::size_t CAPACITY>
 template <typename... Args>
-auto disruptor_queue<T, CAPACITY>::writer::write_emplace(Args&&... args) -> void
+auto disruptor_queue<T, CAPACITY>::writer::write_emplace(
+    Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...> &&
+                             std::is_nothrow_move_assignable_v<T>) -> void
 {
   const sequence_type claimed_sequence = claim_sequence();
 
@@ -233,8 +237,8 @@ class alignas(64) disruptor_queue<T, CAPACITY>::reader
  public:
   explicit reader(disruptor_queue& queue) noexcept;
 
-  value_type read() noexcept;
-  void read(reference output) noexcept;
+  value_type read() noexcept(std::is_nothrow_copy_constructible_v<T>);
+  void read(reference output) noexcept(std::is_nothrow_copy_assignable_v<T>);
 
  private:
   sequence_type get_next_read_sequence() noexcept;
@@ -255,7 +259,8 @@ disruptor_queue<T, CAPACITY>::reader::reader(disruptor_queue& queue) noexcept
 }
 
 template <typename T, std::size_t CAPACITY>
-auto disruptor_queue<T, CAPACITY>::reader::read() noexcept -> value_type
+auto disruptor_queue<T, CAPACITY>::reader::read() noexcept(
+    std::is_nothrow_copy_constructible_v<T>) -> value_type
 {
   const sequence_type next_read_sequence = get_next_read_sequence();
   const size_type read_index = index_from_sequence(next_read_sequence);
@@ -270,8 +275,8 @@ auto disruptor_queue<T, CAPACITY>::reader::read() noexcept -> value_type
 }
 
 template <typename T, std::size_t CAPACITY>
-auto disruptor_queue<T, CAPACITY>::reader::read(reference output) noexcept
-    -> void
+auto disruptor_queue<T, CAPACITY>::reader::read(reference output) noexcept(
+    std::is_nothrow_copy_assignable_v<T>) -> void
 {
   const sequence_type next_read_sequence = get_next_read_sequence();
   const size_type read_index = index_from_sequence(next_read_sequence);
