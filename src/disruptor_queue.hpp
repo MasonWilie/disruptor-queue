@@ -4,6 +4,7 @@
 #include <atomic>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <type_traits>
@@ -56,8 +57,8 @@ class disruptor_queue
   std::atomic<sequence_type> _next_sequence{0};
 
   std::mutex _setup_mutex;
-  std::deque<reader> _readers{};
-  std::deque<writer> _writers{};
+  std::deque<std::unique_ptr<reader>> _readers{};
+  std::deque<std::unique_ptr<writer>> _writers{};
 };
 
 // ==================== QUEUE ====================
@@ -75,14 +76,14 @@ template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::create_reader() -> reader&
 {
   std::lock_guard<std::mutex> lock(_setup_mutex);
-  return _readers.emplace_back(*this);
+  return *_readers.emplace_back(std::make_unique<reader>(*this));
 }
 
 template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::create_writer() -> writer&
 {
   std::lock_guard<std::mutex> lock(_setup_mutex);
-  return _writers.emplace_back(*this);
+  return *_writers.emplace_back(std::make_unique<writer>(*this));
 }
 
 template <typename T, std::size_t CAPACITY>
@@ -109,10 +110,10 @@ auto disruptor_queue<T, CAPACITY>::get_min_consumer_sequence() const noexcept
 
   sequence_type min_sequence = std::numeric_limits<sequence_type>::max();
 
-  for (const auto& reader : _readers)
+  for (const auto& reader_ptr : _readers)
   {
     const sequence_type reader_seq =
-        reader._consumer_sequence.load(std::memory_order_acquire);
+        reader_ptr->_consumer_sequence.load(std::memory_order_acquire);
     min_sequence = std::min(min_sequence, reader_seq);
   }
 
