@@ -222,8 +222,14 @@ class disruptor_queue<T, CAPACITY>::reader
   explicit reader(disruptor_queue& queue) noexcept;
 
   value_type read() noexcept;
+  void read(reference output) noexcept;
 
  private:
+  sequence_type get_next_read_sequence() noexcept;
+  void wait_for_data(std::size_t read_index,
+                     sequence_type next_read_sequence) noexcept;
+  void update_consumer_sequence(sequence_type next_read_sequence) noexcept;
+
   disruptor_queue& _queue;
   std::atomic<sequence_type> _consumer_sequence{INITIAL_SEQUENCE};
 
@@ -239,20 +245,55 @@ disruptor_queue<T, CAPACITY>::reader::reader(disruptor_queue& queue) noexcept
 template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::reader::read() noexcept -> value_type
 {
-  const sequence_type next_read_sequence = _consumer_sequence.load() + 1;
-  const size_type read_index =
-      disruptor_queue::index_from_sequence(next_read_sequence);
+  const sequence_type next_read_sequence = get_next_read_sequence();
+  const size_type read_index = index_from_sequence(next_read_sequence);
 
+  wait_for_data(read_index, next_read_sequence);
+
+  value_type value = _queue._buffer[read_index];
+
+  update_consumer_sequence(next_read_sequence);
+
+  return value;
+}
+
+template <typename T, std::size_t CAPACITY>
+auto disruptor_queue<T, CAPACITY>::reader::read(reference output) noexcept
+    -> void
+{
+  const sequence_type next_read_sequence = get_next_read_sequence();
+  const size_type read_index = index_from_sequence(next_read_sequence);
+
+  wait_for_data(read_index, next_read_sequence);
+
+  output = _queue._buffer[read_index];
+
+  update_consumer_sequence(next_read_sequence);
+}
+
+template <typename T, std::size_t CAPACITY>
+auto disruptor_queue<T, CAPACITY>::reader::get_next_read_sequence() noexcept
+    -> sequence_type
+{
+  return _consumer_sequence.load() + 1;
+}
+
+template <typename T, std::size_t CAPACITY>
+auto disruptor_queue<T, CAPACITY>::reader::wait_for_data(
+    const std::size_t read_index,
+    const sequence_type next_read_sequence) noexcept -> void
+{
   while (_queue._slot_sequences[read_index].load(std::memory_order_acquire) !=
          next_read_sequence)
   {
   }
+}
 
-  value_type value = std::move(_queue._buffer[read_index]);
-
+template <typename T, std::size_t CAPACITY>
+auto disruptor_queue<T, CAPACITY>::reader::update_consumer_sequence(
+    const sequence_type next_read_sequence) noexcept -> void
+{
   _consumer_sequence.store(next_read_sequence, std::memory_order_release);
-
-  return value;
 }
 
 }  // namespace dq

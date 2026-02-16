@@ -75,4 +75,24 @@ TEST(Disruptor_Queue_Tests, Constructable_Type)
   EXPECT_FLOAT_EQ(read_value_two.get_c(), 96.8f);
 }
 
+TEST(Disruptor_Queue_Tests, Read_to_Reference)
+{
+  disruptor_queue<ConstructableType, 16> queue;
+
+  auto& writer = queue.create_writer();
+  auto& reader = queue.create_reader();
+
+  ConstructableType value_one{10, "hello", 10.4f};
+
+  writer.write(value_one);
+
+  ConstructableType read_value_one{11, "goodbye", 96.8f};
+
+  reader.read(read_value_one);
+
+  EXPECT_EQ(read_value_one.get_a(), 10);
+  EXPECT_EQ(read_value_one.get_b(), "hello");
+  EXPECT_FLOAT_EQ(read_value_one.get_c(), 10.4f);
+}
+
 }  // namespace dq::test
