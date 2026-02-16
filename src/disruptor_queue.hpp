@@ -2,6 +2,7 @@
 
 #include <array>
 #include <atomic>
+#include <cassert>
 #include <cstdint>
 #include <deque>
 #include <limits>
@@ -57,6 +58,7 @@ class disruptor_queue
   std::atomic<sequence_type> _next_sequence{0};
 
   std::mutex _setup_mutex;
+  std::atomic<bool> _operations_started{false};
   std::deque<std::unique_ptr<reader>> _readers{};
   std::deque<std::unique_ptr<writer>> _writers{};
 };
@@ -76,6 +78,8 @@ template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::create_reader() -> reader&
 {
   std::lock_guard<std::mutex> lock(_setup_mutex);
+  assert(!_operations_started.load(std::memory_order_acquire) &&
+         "Cannot create reader after queue operations have started");
   return *_readers.emplace_back(std::make_unique<reader>(*this));
 }
 
@@ -83,6 +87,8 @@ template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::create_writer() -> writer&
 {
   std::lock_guard<std::mutex> lock(_setup_mutex);
+  assert(!_operations_started.load(std::memory_order_acquire) &&
+         "Cannot create writer after queue operations have started");
   return *_writers.emplace_back(std::make_unique<writer>(*this));
 }
 
@@ -179,6 +185,11 @@ template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::writer::claim_sequence() noexcept
     -> sequence_type
 {
+  if (!_queue._operations_started.load(std::memory_order_relaxed))
+  {
+    _queue._operations_started.store(true, std::memory_order_release);
+  }
+
   const sequence_type claimed_sequence =
       _queue._next_sequence.fetch_add(1, std::memory_order_relaxed);
 
@@ -276,6 +287,10 @@ template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::reader::get_next_read_sequence() noexcept
     -> sequence_type
 {
+  if (!_queue._operations_started.load(std::memory_order_relaxed))
+  {
+    _queue._operations_started.store(true, std::memory_order_release);
+  }
   return _consumer_sequence.load(std::memory_order_relaxed) + 1;
 }
 
