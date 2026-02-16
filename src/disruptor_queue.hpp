@@ -8,7 +8,6 @@
 #include <limits>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <type_traits>
 
 #include "bit_utils.hpp"
