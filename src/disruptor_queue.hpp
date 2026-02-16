@@ -18,6 +18,8 @@ class disruptor_queue
 {
   using sequence_type = int64_t;
 
+  static constexpr sequence_type INITIAL_SEQUENCE = -1;
+
   static_assert(CAPACITY > 0, "Queue capacity must be positive");
   static_assert(internal::is_power_of_two(CAPACITY),
                 "Queue capacity must be a power of two");
@@ -42,7 +44,7 @@ class disruptor_queue
 
    private:
     disruptor_queue& _queue;
-    std::atomic<sequence_type> _consumer_sequence{-1};
+    std::atomic<sequence_type> _consumer_sequence{INITIAL_SEQUENCE};
 
     friend class disruptor_queue;
   };
@@ -54,11 +56,17 @@ class disruptor_queue
 
     void write(value_type value) noexcept;
 
+    template <typename... Args>
+    void write_emplace(Args&&... args);
+
    private:
+    sequence_type claim_sequence() noexcept;
+    void commit_sequence(size_type write_index,
+                         sequence_type claimed_sequence) noexcept;
     void wait_for_no_wrap(sequence_type claimed_sequence) noexcept;
 
     disruptor_queue& _queue;
-    sequence_type _cached_min_consumer_sequence{-1};
+    sequence_type _cached_min_consumer_sequence{INITIAL_SEQUENCE};
 
     friend class disruptor_queue;
   };
@@ -71,8 +79,6 @@ class disruptor_queue
   writer& create_writer();
 
  private:
-  static constexpr sequence_type INITIAL_SEQUENCE = -1;
-
   static size_type index_from_sequence(sequence_type sequence) noexcept;
   sequence_type get_min_consumer_sequence() const noexcept;
 
@@ -158,15 +164,43 @@ template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::writer::write(value_type value) noexcept
     -> void
 {
+  const sequence_type claimed_sequence = claim_sequence();
+
+  const size_type write_index = index_from_sequence(claimed_sequence);
+  _queue._buffer[write_index] = std::move(value);
+
+  commit_sequence(write_index, claimed_sequence);
+}
+
+template <typename T, std::size_t CAPACITY>
+template <typename... Args>
+void disruptor_queue<T, CAPACITY>::writer::write_emplace(Args&&... args)
+{
+  const sequence_type claimed_sequence = claim_sequence();
+
+  const size_type write_index = index_from_sequence(claimed_sequence);
+
+  _queue._buffer[write_index] = value_type{std::forward<Args>(args)...};
+
+  commit_sequence(write_index, claimed_sequence);
+}
+
+template <typename T, std::size_t CAPACITY>
+auto disruptor_queue<T, CAPACITY>::writer::claim_sequence() noexcept
+    -> sequence_type
+{
   const sequence_type claimed_sequence =
       _queue._next_sequence.fetch_add(1, std::memory_order_relaxed);
 
   wait_for_no_wrap(claimed_sequence);
 
-  const size_type write_index =
-      disruptor_queue::index_from_sequence(claimed_sequence);
-  _queue._buffer[write_index] = std::move(value);
+  return claimed_sequence;
+}
 
+template <typename T, std::size_t CAPACITY>
+void disruptor_queue<T, CAPACITY>::writer::commit_sequence(
+    const size_type write_index, const sequence_type claimed_sequence) noexcept
+{
   _queue._slot_sequences[write_index].store(claimed_sequence,
                                             std::memory_order_release);
 }
