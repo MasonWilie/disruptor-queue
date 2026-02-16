@@ -33,50 +33,17 @@ class disruptor_queue
   using const_reference = const_value_type&;
   using size_type = size_t;
 
-  static constexpr size_type capacity() noexcept;
-
-  class reader
-  {
-   public:
-    explicit reader(disruptor_queue& queue) noexcept;
-
-    value_type read() noexcept;
-
-   private:
-    disruptor_queue& _queue;
-    std::atomic<sequence_type> _consumer_sequence{INITIAL_SEQUENCE};
-
-    friend class disruptor_queue;
-  };
-
-  class writer
-  {
-   public:
-    explicit writer(disruptor_queue& queue) noexcept;
-
-    void write(value_type value) noexcept;
-
-    template <typename... Args>
-    void write_emplace(Args&&... args);
-
-   private:
-    sequence_type claim_sequence() noexcept;
-    void commit_sequence(size_type write_index,
-                         sequence_type claimed_sequence) noexcept;
-    void wait_for_no_wrap(sequence_type claimed_sequence) noexcept;
-
-    disruptor_queue& _queue;
-    sequence_type _cached_min_consumer_sequence{INITIAL_SEQUENCE};
-
-    friend class disruptor_queue;
-  };
+  class reader;
+  class writer;
 
  public:
   disruptor_queue();
 
   // Reader/Writer creation must be called during setup ONLY
-  reader& create_reader();
-  writer& create_writer();
+  [[nodiscard]] reader& create_reader();
+  [[nodiscard]] writer& create_writer();
+
+  [[nodiscard]] static constexpr size_type capacity() noexcept;
 
  private:
   static size_type index_from_sequence(sequence_type sequence) noexcept;
@@ -153,6 +120,28 @@ auto disruptor_queue<T, CAPACITY>::get_min_consumer_sequence() const noexcept
 }
 
 // ==================== WRITER ====================
+template <typename T, std::size_t CAPACITY>
+class disruptor_queue<T, CAPACITY>::writer
+{
+ public:
+  explicit writer(disruptor_queue& queue) noexcept;
+
+  void write(value_type value) noexcept;
+
+  template <typename... Args>
+  void write_emplace(Args&&... args);
+
+ private:
+  sequence_type claim_sequence() noexcept;
+  void commit_sequence(size_type write_index,
+                       sequence_type claimed_sequence) noexcept;
+  void wait_for_no_wrap(sequence_type claimed_sequence) noexcept;
+
+  disruptor_queue& _queue;
+  sequence_type _cached_min_consumer_sequence{INITIAL_SEQUENCE};
+
+  friend class disruptor_queue;
+};
 
 template <typename T, std::size_t CAPACITY>
 disruptor_queue<T, CAPACITY>::writer::writer(disruptor_queue& queue) noexcept
@@ -225,6 +214,21 @@ auto disruptor_queue<T, CAPACITY>::writer::wait_for_no_wrap(
 }
 
 // ==================== READER ====================
+
+template <typename T, std::size_t CAPACITY>
+class disruptor_queue<T, CAPACITY>::reader
+{
+ public:
+  explicit reader(disruptor_queue& queue) noexcept;
+
+  value_type read() noexcept;
+
+ private:
+  disruptor_queue& _queue;
+  std::atomic<sequence_type> _consumer_sequence{INITIAL_SEQUENCE};
+
+  friend class disruptor_queue;
+};
 
 template <typename T, std::size_t CAPACITY>
 disruptor_queue<T, CAPACITY>::reader::reader(disruptor_queue& queue) noexcept
