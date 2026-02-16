@@ -121,7 +121,7 @@ auto disruptor_queue<T, CAPACITY>::get_min_consumer_sequence() const noexcept
 
 // ==================== WRITER ====================
 template <typename T, std::size_t CAPACITY>
-class disruptor_queue<T, CAPACITY>::writer
+class alignas(64) disruptor_queue<T, CAPACITY>::writer
 {
  public:
   explicit writer(disruptor_queue& queue) noexcept;
@@ -216,7 +216,7 @@ auto disruptor_queue<T, CAPACITY>::writer::wait_for_no_wrap(
 // ==================== READER ====================
 
 template <typename T, std::size_t CAPACITY>
-class disruptor_queue<T, CAPACITY>::reader
+class alignas(64) disruptor_queue<T, CAPACITY>::reader
 {
  public:
   explicit reader(disruptor_queue& queue) noexcept;
