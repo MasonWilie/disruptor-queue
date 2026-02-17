@@ -53,7 +53,12 @@ class disruptor_queue
 
   std::array<value_type, CAPACITY> _buffer{};
 
-  std::array<std::atomic<sequence_type>, CAPACITY> _slot_sequences{};
+  struct alignas(64) padded_sequence
+  {
+    std::atomic<sequence_type> value{INITIAL_SEQUENCE};
+  };
+
+  std::array<padded_sequence, CAPACITY> _slot_sequences{};
 
   std::atomic<sequence_type> _next_sequence{0};
 
@@ -66,13 +71,7 @@ class disruptor_queue
 // ==================== QUEUE ====================
 
 template <typename T, std::size_t CAPACITY>
-disruptor_queue<T, CAPACITY>::disruptor_queue()
-{
-  for (auto& slot_seq : _slot_sequences)
-  {
-    slot_seq.store(INITIAL_SEQUENCE, std::memory_order_relaxed);
-  }
-}
+disruptor_queue<T, CAPACITY>::disruptor_queue() = default;
 
 template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::create_reader() -> reader&
@@ -207,8 +206,8 @@ auto disruptor_queue<T, CAPACITY>::writer::commit_sequence(
     const size_type write_index,
     const sequence_type claimed_sequence) noexcept -> void
 {
-  _queue._slot_sequences[write_index].store(claimed_sequence,
-                                            std::memory_order_release);
+  _queue._slot_sequences[write_index].value.store(claimed_sequence,
+                                                  std::memory_order_release);
 }
 
 template <typename T, std::size_t CAPACITY>
@@ -237,7 +236,7 @@ class alignas(64) disruptor_queue<T, CAPACITY>::reader
  public:
   explicit reader(disruptor_queue& queue) noexcept;
 
-  value_type read() noexcept(std::is_nothrow_copy_constructible_v<T>);
+  [[nodiscard]] value_type read() noexcept(std::is_nothrow_copy_constructible_v<T>);
   void read(reference output) noexcept(std::is_nothrow_copy_assignable_v<T>);
 
  private:
@@ -304,8 +303,8 @@ auto disruptor_queue<T, CAPACITY>::reader::wait_for_data(
     const std::size_t read_index,
     const sequence_type next_read_sequence) noexcept -> void
 {
-  while (_queue._slot_sequences[read_index].load(std::memory_order_acquire) !=
-         next_read_sequence)
+  while (_queue._slot_sequences[read_index].value.load(
+             std::memory_order_acquire) != next_read_sequence)
   {
   }
 }
