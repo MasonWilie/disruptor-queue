@@ -1,0 +1,8 @@
+cc_binary(
+    name = "disruptor_queue_benchmark",
+    srcs = ["disruptor_queue_benchmark.cpp"],
+    deps = [
+        "@google_benchmark//:benchmark_main",
+        "//src:disruptor_queue",
+    ],
+)
