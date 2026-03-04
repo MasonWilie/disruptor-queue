@@ -44,6 +44,7 @@ class disruptor_queue
   // Reader/Writer creation must be called during setup ONLY
   [[nodiscard]] reader& create_reader();
   [[nodiscard]] writer& create_writer();
+  void start();
 
   [[nodiscard]] static constexpr size_type capacity() noexcept;
 
@@ -89,6 +90,13 @@ auto disruptor_queue<T, CAPACITY>::create_writer() -> writer&
   assert(!_operations_started.load(std::memory_order_acquire) &&
          "Cannot create writer after queue operations have started");
   return *_writers.emplace_back(std::make_unique<writer>(*this));
+}
+
+template <typename T, std::size_t CAPACITY>
+auto disruptor_queue<T, CAPACITY>::start() -> void
+{
+  std::lock_guard<std::mutex> lock(_setup_mutex);
+  _operations_started.store(true, std::memory_order_release);
 }
 
 template <typename T, std::size_t CAPACITY>
@@ -188,11 +196,6 @@ template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::writer::claim_sequence() noexcept
     -> sequence_type
 {
-  if (!_queue._operations_started.load(std::memory_order_relaxed))
-  {
-    _queue._operations_started.store(true, std::memory_order_release);
-  }
-
   const sequence_type claimed_sequence =
       _queue._next_sequence.fetch_add(1, std::memory_order_relaxed);
 
@@ -291,10 +294,6 @@ template <typename T, std::size_t CAPACITY>
 auto disruptor_queue<T, CAPACITY>::reader::get_next_read_sequence() noexcept
     -> sequence_type
 {
-  if (!_queue._operations_started.load(std::memory_order_relaxed))
-  {
-    _queue._operations_started.store(true, std::memory_order_release);
-  }
   return _consumer_sequence.load(std::memory_order_relaxed) + 1;
 }
 

@@ -10,6 +10,7 @@ TEST(Disruptor_Queue_Tests, Simple_Type)
 
   auto& writer = queue.create_writer();
   auto& reader = queue.create_reader();
+  queue.start();
 
   writer.write(10);
   EXPECT_EQ(reader.read(), 10);
@@ -55,6 +56,7 @@ TEST(Disruptor_Queue_Tests, Constructable_Type)
 
   auto& writer = queue.create_writer();
   auto& reader = queue.create_reader();
+  queue.start();
 
   ConstructableType value_one{10, "hello", 10.4f};
 
@@ -81,6 +83,7 @@ TEST(Disruptor_Queue_Tests, Read_to_Reference)
 
   auto& writer = queue.create_writer();
   auto& reader = queue.create_reader();
+  queue.start();
 
   ConstructableType value_one{10, "hello", 10.4f};
 

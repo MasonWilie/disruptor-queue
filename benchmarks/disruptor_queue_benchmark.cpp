@@ -40,6 +40,7 @@ void BM_SPSC_Throughput(benchmark::State& state)
     dq::disruptor_queue<T, CAPACITY> queue;
     auto& writer = queue.create_writer();
     auto& reader = queue.create_reader();
+    queue.start();
 
     std::thread consumer([&]() {
       for (int64_t i = 0; i < items_per_iteration; ++i)
@@ -78,6 +79,7 @@ void BM_SingleProducerMultiConsumer(benchmark::State& state)
     {
       readers.push_back(&queue.create_reader());
     }
+    queue.start();
 
     std::vector<std::thread> consumers;
     consumers.reserve(num_readers);
@@ -128,6 +130,7 @@ void BM_MultiProducerSingleConsumer(benchmark::State& state)
     }
 
     auto& reader = queue.create_reader();
+    queue.start();
 
     std::barrier start_barrier(num_writers + 2);
 
@@ -181,6 +184,7 @@ void BM_Latency(benchmark::State& state)
   dq::disruptor_queue<T, CAPACITY> queue;
   auto& writer = queue.create_writer();
   auto& reader = queue.create_reader();
+  queue.start();
 
   std::atomic<int64_t> items_to_consume{0};
   std::atomic<bool> stop{false};
@@ -231,6 +235,8 @@ void BM_PingPongLatency(benchmark::State& state)
   auto& request_reader = request_queue.create_reader();
   auto& response_writer = response_queue.create_writer();
   auto& response_reader = response_queue.create_reader();
+  request_queue.start();
+  response_queue.start();
 
   std::atomic<bool> stop{false};
 
@@ -277,6 +283,7 @@ void BM_BurstWriteRead(benchmark::State& state)
     dq::disruptor_queue<T, CAPACITY> queue;
     auto& writer = queue.create_writer();
     auto& reader = queue.create_reader();
+    queue.start();
 
     std::barrier start_barrier(2);
 
@@ -325,6 +332,7 @@ void BM_WriterContention(benchmark::State& state)
     }
 
     auto& reader = queue.create_reader();
+    queue.start();
 
     std::barrier start_barrier(num_writers + 1);
     std::atomic<int64_t> consumed{0};
