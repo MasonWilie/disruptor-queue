@@ -28,7 +28,7 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.ParameterCase
     value: lower_case
-  - key: readability-identifier-naming.PrivateMemberSuffix
+  - key: readability-identifier-naming.PrivateMemberPrefix
     value: _
   
   # Actual constants (compile-time) - UPPER_CASE

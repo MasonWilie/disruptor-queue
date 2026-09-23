@@ -38,19 +38,19 @@ class disruptor_queue
   class reader;
   class writer;
 
- public:
   disruptor_queue();
 
   // Reader/Writer creation must be called during setup ONLY
   [[nodiscard]] reader& create_reader();
   [[nodiscard]] writer& create_writer();
+
   void start();
 
   [[nodiscard]] static constexpr size_type capacity() noexcept;
 
  private:
   static size_type index_from_sequence(sequence_type sequence) noexcept;
-  sequence_type get_min_consumer_sequence() const noexcept;
+  [[nodiscard]] sequence_type get_min_consumer_sequence() const noexcept;
 
   std::array<value_type, CAPACITY> _buffer{};
 
@@ -153,7 +153,7 @@ class alignas(64) disruptor_queue<T, CAPACITY>::writer
                        sequence_type claimed_sequence) noexcept;
   void wait_for_no_wrap(sequence_type claimed_sequence) noexcept;
 
-  disruptor_queue& _queue;
+  std::reference_wrapper<disruptor_queue> _queue;
   sequence_type _cached_min_consumer_sequence{INITIAL_SEQUENCE};
 
   friend class disruptor_queue;
@@ -172,7 +172,7 @@ auto disruptor_queue<T, CAPACITY>::writer::write(value_type value) noexcept(
   const sequence_type claimed_sequence = claim_sequence();
 
   const size_type write_index = index_from_sequence(claimed_sequence);
-  _queue._buffer[write_index] = std::move(value);
+  _queue.get()._buffer[write_index] = std::move(value);
 
   commit_sequence(write_index, claimed_sequence);
 }
@@ -187,7 +187,7 @@ auto disruptor_queue<T, CAPACITY>::writer::write_emplace(
 
   const size_type write_index = index_from_sequence(claimed_sequence);
 
-  _queue._buffer[write_index] = value_type{std::forward<Args>(args)...};
+  _queue.get()._buffer[write_index] = value_type{std::forward<Args>(args)...};
 
   commit_sequence(write_index, claimed_sequence);
 }
@@ -197,7 +197,7 @@ auto disruptor_queue<T, CAPACITY>::writer::claim_sequence() noexcept
     -> sequence_type
 {
   const sequence_type claimed_sequence =
-      _queue._next_sequence.fetch_add(1, std::memory_order_relaxed);
+      _queue.get()._next_sequence.fetch_add(1, std::memory_order_relaxed);
 
   wait_for_no_wrap(claimed_sequence);
 
@@ -209,8 +209,8 @@ auto disruptor_queue<T, CAPACITY>::writer::commit_sequence(
     const size_type write_index,
     const sequence_type claimed_sequence) noexcept -> void
 {
-  _queue._slot_sequences[write_index].value.store(claimed_sequence,
-                                                  std::memory_order_release);
+  _queue.get()._slot_sequences[write_index].value.store(
+      claimed_sequence, std::memory_order_release);
 }
 
 template <typename T, std::size_t CAPACITY>
@@ -227,7 +227,7 @@ auto disruptor_queue<T, CAPACITY>::writer::wait_for_no_wrap(
 
   while (wrap_point > _cached_min_consumer_sequence)
   {
-    _cached_min_consumer_sequence = _queue.get_min_consumer_sequence();
+    _cached_min_consumer_sequence = _queue.get().get_min_consumer_sequence();
   }
 }
 
@@ -239,7 +239,8 @@ class alignas(64) disruptor_queue<T, CAPACITY>::reader
  public:
   explicit reader(disruptor_queue& queue) noexcept;
 
-  [[nodiscard]] value_type read() noexcept(std::is_nothrow_copy_constructible_v<T>);
+  [[nodiscard]] value_type read() noexcept(
+      std::is_nothrow_copy_constructible_v<T>);
   void read(reference output) noexcept(std::is_nothrow_copy_assignable_v<T>);
 
  private:
@@ -248,7 +249,7 @@ class alignas(64) disruptor_queue<T, CAPACITY>::reader
                      sequence_type next_read_sequence) noexcept;
   void update_consumer_sequence(sequence_type next_read_sequence) noexcept;
 
-  disruptor_queue& _queue;
+  std::reference_wrapper<disruptor_queue> _queue;
   std::atomic<sequence_type> _consumer_sequence{INITIAL_SEQUENCE};
 
   friend class disruptor_queue;
@@ -269,7 +270,7 @@ auto disruptor_queue<T, CAPACITY>::reader::read() noexcept(
 
   wait_for_data(read_index, next_read_sequence);
 
-  value_type value = _queue._buffer[read_index];
+  value_type value = _queue.get()._buffer[read_index];
 
   update_consumer_sequence(next_read_sequence);
 
@@ -285,7 +286,7 @@ auto disruptor_queue<T, CAPACITY>::reader::read(reference output) noexcept(
 
   wait_for_data(read_index, next_read_sequence);
 
-  output = _queue._buffer[read_index];
+  output = _queue.get()._buffer[read_index];
 
   update_consumer_sequence(next_read_sequence);
 }
@@ -302,7 +303,7 @@ auto disruptor_queue<T, CAPACITY>::reader::wait_for_data(
     const std::size_t read_index,
     const sequence_type next_read_sequence) noexcept -> void
 {
-  while (_queue._slot_sequences[read_index].value.load(
+  while (_queue.get()._slot_sequences[read_index].value.load(
              std::memory_order_acquire) != next_read_sequence)
   {
   }
